@@ -32,7 +32,7 @@ export const STORES: StoreConfig[] = [
     workHours: GLORIA_WORK_HOURS, staffingRules: GLORIA_STAFFING_RULES,
     demandProfile: GLORIA_DEMAND,
     dayWeights: GLORIA_DAY_WEIGHTS,
-    notes: "T2–T6 09:30–19:30; T7 10:00–18:00. Nghỉ Chủ nhật và ngày lễ NRW. Đông T5, T6, T7; T7 đông hơn T2 một chút. Cao điểm 16:00–19:00 (T7 đến 18:00). Chủ tiệm có mặt cả ngày, ngoài định mức lương. Ưu tiên ít nhất 1 nhân viên hưởng lương cao điểm; giờ còn lại phân bổ theo hệ số. T5/T6 ×1,5; T7 ×1,375 theo giờ mở (tổng giờ mục tiêu cao hơn T2 10%). Điện thoại: 0221/56066581 | 0152/36110859. Website: gloria-cosmetic.de." },
+    notes: "T2–T6 09:30–19:30; T7 10:00–18:00. Nghỉ Chủ nhật và ngày lễ NRW. Đông T5, T6, T7; T7 đông hơn T2 một chút. Cao điểm 16:00–19:00 (T7 đến 18:00). Chủ tiệm có mặt cả ngày, ngoài định mức lương. Bắt buộc ít nhất 1 nhân viên ngoài chủ suốt giờ mở cửa T5–T7. Tiếp theo ưu tiên 16–19h ngày thường, sau đó phủ giờ còn lại; hệ số là mục tiêu mềm. T5/T6 ×1,5; T7 ×1,4 theo giờ mở (tổng giờ mục tiêu cao hơn T2 12%). Điện thoại: 0221/56066581 | 0152/36110859. Website: gloria-cosmetic.de." },
 ];
 
 export const DEFAULT_STORE_ID = STORES[0].id;

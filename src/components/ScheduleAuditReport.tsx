@@ -15,7 +15,7 @@ export function ScheduleAuditReport({ schedule, store }: { schedule: Schedule; s
       Tổng giờ & độ phủ · {hours(report.assignedMinutes)} / {hours(report.targetMinutes)}h · không có nhân viên {hours(report.uncoveredMinutes)}h
     </h3>
     <div className="mt-3 space-y-4">
-      <p>Giờ công chỉ tính nhân viên. Độ phủ chỉ tính nhân viên ngoài chủ, trừ giờ nghỉ. Ưu tiên ít nhất 1 nhân viên hưởng lương trong cao điểm 16–19h; ngoài khung này chủ có thể đứng một mình. Chủ đứng một mình {hours(ownerOnly)}h trong tháng. Số nhân sự là số người ít nhất trong khung.</p>
+      <p>Giờ công chỉ tính nhân viên. Độ phủ chỉ tính nhân viên ngoài chủ, trừ giờ nghỉ. T5–T7 cần ít nhất 1 nhân viên ngoài chủ suốt giờ mở cửa. Ngày thường ưu tiên 16–19h, sau đó phủ giờ còn lại. Chủ đứng một mình {hours(ownerOnly)}h trong tháng. Số nhân sự là số người ít nhất trong khung.</p>
       <p>Mục tiêu ngày = giờ định mức tháng × (hệ số ngày × phút mở cửa) ÷ tổng hệ số có trọng số của tháng. Đây là mục tiêu mềm; ca, ngày nghỉ, giờ hợp đồng có thể làm giờ thực tế lệch.</p>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-xs">

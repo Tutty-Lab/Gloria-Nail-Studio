@@ -17,7 +17,6 @@ import { StundenzettelTab } from "./StundenzettelTab";
 import { weeksOfMonth } from "../lib/weeks";
 import { employmentShortVi } from "../lib/employment";
 import { monthlyTargetMinutesFor, SCHEDULE_SLOT_MINUTES } from "../lib/contract";
-import { ScheduleAuditReport } from "./ScheduleAuditReport";
 import { auditSchedule, AUDIT_WINDOWS } from "../lib/scheduleAudit";
 import type { PeakCoverage } from "../lib/analyze";
 import { ruleById, staffingRuleId } from "../lib/rules";
@@ -153,8 +152,6 @@ export function ScheduleTab({
   }, [store.analysis]);
   const staffingRows = store.storeConfig.staffingRules;
 
-  const [showCoverage, setShowCoverage] = useState(false);
-  const [showDebug, setShowDebug] = useState(true);
   const audit = useMemo(() => auditSchedule(schedule, store.storeConfig), [schedule, store.storeConfig]);
   const auditDays = useMemo(() => new Map(audit.days.map(d => [d.date,d])), [audit]);
   const hasEmployees = store.activeEmployees.length > 0;
@@ -176,10 +173,7 @@ export function ScheduleTab({
           mode={mode}
           toolbarRight={
             <>
-            {mode === "schedule" && <>
-              <button type="button" aria-expanded={showCoverage} onClick={() => setShowCoverage(v=>!v)} className={`rounded-lg border px-2.5 py-1.5 text-sm ${showCoverage ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-800 border-slate-200"}`}>Độ phủ</button>
-              <button type="button" aria-pressed={showDebug} onClick={() => setShowDebug(v=>!v)} className={`rounded-lg border px-2.5 py-1.5 text-sm ${showDebug ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-800 border-slate-200"}`}>Debug khung giờ</button>
-            </>}
+
           {view === "week" && weeks.length > 0 && (
             <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white">
               <button
@@ -229,7 +223,6 @@ export function ScheduleTab({
         />
       )}
 
-      {mode === "schedule" && showCoverage && <ScheduleAuditReport schedule={schedule} store={store.storeConfig} />}
 
       {/* Lỗi kiểm tra */}
       {mode === "schedule" && !validation.valid && schedule.shifts.length > 0 && (
@@ -431,7 +424,7 @@ export function ScheduleTab({
                 />
               ))}
 
-              {showDebug && schedule.shifts.length > 0 && AUDIT_WINDOWS.map((window,index) => <GroupWindowRow
+              {schedule.shifts.length > 0 && AUDIT_WINDOWS.map((window,index) => <GroupWindowRow
                 key={window.label} label={`Nhân sự ${window.label}`} title={`Nhân sự ít nhất có mặt, ${window.label}`}
                 labelClass="text-sky-700" dates={gridDates} need={0}
                 value={date=>{
@@ -599,7 +592,7 @@ function GroupWindowRow({
           : n === 0 ? "bg-amber-50 text-amber-800" : "";
         return (
           <td key={d} className={`border-t border-l border-slate-200 px-1 py-1 text-center ${tone}`}>
-            {n ?? "–"}
+            {n === 0 ? "Chủ" : n ?? "–"}
           </td>
         );
       })}

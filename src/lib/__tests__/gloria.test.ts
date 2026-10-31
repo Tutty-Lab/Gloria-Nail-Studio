@@ -32,7 +32,7 @@ it("Saturday target remains slightly above Monday despite shorter opening", () =
  const targets=weightedDailyTargets(["2026-10-05","2026-10-08","2026-10-10"], 30,
  d=>weekdayKeyOf(parseIsoDate(d)), d=>d.endsWith("10")?480:600,store.dayWeights);
  expect(targets.get("2026-10-10")!).toBeGreaterThan(targets.get("2026-10-05")!);
- expect(targets.get("2026-10-10")! / targets.get("2026-10-05")!).toBeCloseTo(1.1);
+ expect(targets.get("2026-10-10")! / targets.get("2026-10-05")!).toBeCloseTo(1.12);
 });
 
 import { generateSchedule } from "../scheduler";
@@ -80,9 +80,18 @@ import { STAFFING_RULES, workloadAt } from "../staffing";
 it("runtime defaults and rule panel contain only GLORIA staffing",()=>{
  expect(DEFAULT_WORK_HOURS).toEqual(STORES[0].workHours);
  expect(STAFFING_RULES).toEqual(STORES[0].staffingRules);
- expect(STAFFING_RULES.map(r=>r.label)).toEqual(["Nhân viên giờ cao điểm"]);
- expect(ruleById(staffingRuleId(STAFFING_RULES[0].label)).kind).toBe("soft");
- expect(RULES.some(r=>["closing","two-stores","holiday-duty","spread-service"].includes(r.id))).toBe(false);
+ expect(STAFFING_RULES.map(r=>r.label)).toEqual(["Nhân viên ngày đông","Nhân viên giờ cao điểm","Nhân viên giờ thường"]);
+ expect(ruleById(staffingRuleId(STAFFING_RULES[0].label)).kind).toBe("hard");
+ expect(RULES.some(r=>["two-stores","holiday-duty","spread-service"].includes(r.id))).toBe(false);
  expect(workloadAt(960,"monday")).toBe(1.8);
  expect(workloadAt(720,"monday")).toBe(1);
+});
+
+import { auditSchedule } from "../scheduleAudit";
+it("covers busy days with paid employees throughout opening hours",()=>{
+ const store=STORES[0], schedule=initialScheduleFor(store);
+ const shifts=generateSchedule({...schedule,rules:store.staffingRules,weights:store.dayWeights,demandProfile:store.demandProfile,storeTag:store.id});
+ const report=auditSchedule({...schedule,shifts},store);
+ const busy=report.days.filter(d=>!d.closed && ["thursday","friday","saturday"].includes(d.weekday));
+ expect(busy.reduce((sum,d)=>sum+d.windows.reduce((n,w)=>n+w.uncoveredMinutes,0),0)).toBe(0);
 });
