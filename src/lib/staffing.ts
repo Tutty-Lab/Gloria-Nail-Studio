@@ -1,4 +1,4 @@
-import { busyKitchenTarget } from "./coveragePolicy";
+import { GLORIA_STAFFING_RULES, GLORIA_DEMAND } from "./gloriaConfig";
 import type { Employee, Shift } from "../types";
 import { DAY_WEIGHTS, type WeekdayKey } from "./demand";
 import type { DayBlocks, DayWindow } from "./workHours";
@@ -14,13 +14,6 @@ export type StaffingWindow = {
   weight?: number;
   priority?: "required" | "preparation" | "coverage";
 };
-
-/** Ab hier läuft der Abend aus – bis dahin muss jemand im Laden bleiben. */
-export const CLOSING_START = 21 * 60 + 30;
-export const CLOSING_MIN = 1;
-export const CLOSING_MAX = Infinity;
-/** Ende des Mittagsblocks; auch hier bleibt jemand bis zum Schluss. */
-export const LUNCH_END = 15 * 60;
 
 /**
  * Eine Besetzungsregel: WO (Zeitspanne je Öffnungsblock) und WIE VIELE.
@@ -58,31 +51,7 @@ export const clip = (from: number, to: number) => (blocks: DayBlocks): DayWindow
     .map((block) => ({ startMinutes: Math.max(from, block.startMinutes), endMinutes: Math.min(to, block.endMinutes) }))
     .filter((window) => window.endMinutes > window.startMinutes);
 
-/**
- * Vorgabe des Betriebs (Shin):
- *  - „Ít nhất có 1 nhân viên làm tới 15:00" und „tới 22:00" – harte Regeln,
- *    deshalb eigene Fenster am Ende beider Blöcke.
- *  - „1 ca khoảng 4-5 người" – als Spanne 3–7 mittags und 4–7 abends geführt:
- *    der Monat hat rund 1.146 Vertragsstunden auf 26 offene Tage, das sind im
- *    Schnitt gut 5 Leute im Haus. Die Verteilung über den Tag macht die
- *    Nachfragekurve unten.
- */
-export const STAFFING_RULES: readonly StaffingRule[] = [
-  {
-    label: "Trong giờ mở cửa", when: "suốt mỗi khung mở", minStaff: 1, maxStaff: Infinity, scaled: false,
-    windows: (blocks) => blocks.map((block) => ({ startMinutes: block.startMinutes, endMinutes: block.endMinutes })),
-  },
-  {
-    label: "Chốt ca trưa", when: "14:30–15:00", minStaff: 1, maxStaff: Infinity, scaled: false,
-    windows: clip(14 * 60 + 30, LUNCH_END),
-  },
-  { label: "Trưa", when: "12:00–14:00", minStaff: 3, maxStaff: 7, scaled: false, windows: clip(12 * 60, 14 * 60) },
-  { label: "Tối", when: "18:00–21:00", minStaff: 4, maxStaff: 7, scaled: false, windows: clip(18 * 60, 21 * 60) },
-  {
-    label: "Đóng cửa", when: "21:30–22:00", minStaff: CLOSING_MIN, maxStaff: CLOSING_MAX, scaled: false,
-    windows: clip(CLOSING_START, 22 * 60),
-  },
-];
+export const STAFFING_RULES = GLORIA_STAFFING_RULES;
 
 /** Mindest-/Höchstzahl einer Regel an einem Wochentag (Gewicht angewandt, aufgerundet). */
 export function ruleRange(rule: StaffingRule, weekday: WeekdayKey): { minStaff: number; maxStaff: number } {
@@ -109,61 +78,9 @@ export function staffingWindows(
   });
 }
 
-// ── Đường nhu cầu trong ngày ────────────────────────────────────────────────
-/**
- * Nhu cầu tương đối theo giờ (1,0 = bình thường) – dạng „ngọn núi": chuẩn bị,
- * lên dốc, đỉnh, xuống dốc. Thuật toán chia GIỜ CÔNG CỦA NGÀY (đã nhân hệ số
- * ngày) theo đường này thành số người mục tiêu cho từng 30 phút, rồi phạt độ
- * lệch theo bình phương – nhờ vậy số người lên xuống mượt, không dồn cục.
- *
- * Shin mở hai khung: trưa 11:30–15:00 và tối 17:00–22:00. Cuối tuần và ngày lễ
- * khách ăn trưa đông hơn, nên đỉnh trưa cao hơn (cột phải).
- */
 export type DemandBand = { startMinutes: number; endMinutes: number; level: number; label: string };
-
-const band = (from: string, to: string, level: number, label: string): DemandBand => {
-  const toMinutes = (value: string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3));
-  return { startMinutes: toMinutes(from), endMinutes: toMinutes(to), level, label };
-};
-
-export const DEMAND_PROFILE: { weekday: readonly DemandBand[]; sunday: readonly DemandBand[] } = {
-  weekday: [
-    band("11:30", "12:00", 0.8, "Mở cửa, chuẩn bị"),
-    band("12:00", "13:00", 1.3, "Cao điểm trưa"),
-    band("13:00", "13:30", 1.1, "Cuối cao điểm trưa"),
-    band("13:30", "14:30", 0.9, "Cuối trưa"),
-    band("14:30", "15:00", 0.75, "Chốt ca trưa"),
-    band("17:00", "17:30", 0.85, "Mở ca tối"),
-    band("17:30", "18:00", 1.05, "Chuẩn bị tối"),
-    band("18:00", "18:30", 1.3, "Vào cao điểm"),
-    band("18:30", "20:00", 1.5, "Cao điểm tối"),
-    band("20:00", "20:30", 1.3, "Sau cao điểm"),
-    band("20:30", "21:00", 1.1, "Vãn khách"),
-    band("21:00", "21:30", 0.95, "Vãn khách"),
-    band("21:30", "22:00", 0.8, "Đóng cửa"),
-  ],
-  // T5–CN và ngày lễ: trưa đông hơn hẳn ngày thường.
-  sunday: [
-    band("11:30", "12:00", 1.0, "Mở cửa, chuẩn bị"),
-    band("12:00", "13:30", 1.5, "Cao điểm trưa"),
-    band("13:30", "14:30", 1.2, "Cuối trưa"),
-    band("14:30", "15:00", 0.9, "Chốt ca trưa"),
-    band("17:00", "17:30", 1.0, "Mở ca tối"),
-    band("17:30", "18:00", 1.2, "Chuẩn bị tối"),
-    band("18:00", "20:00", 1.5, "Cao điểm tối"),
-    band("20:00", "21:00", 1.2, "Sau cao điểm"),
-    band("21:00", "21:30", 1.0, "Vãn khách"),
-    band("21:30", "22:00", 0.9, "Đóng cửa"),
-  ],
-};
-
-export function demandProfileOf(
-  weekday: WeekdayKey,
-  weights: Record<WeekdayKey, number> = DAY_WEIGHTS,
-): readonly DemandBand[] {
-  // Ngày đông (hệ số > 1) dùng đường có đỉnh trưa cao. Mỗi quán có hệ số riêng:
-  // Shin/Coco đông T5–CN, Nieu đông T6–CN.
-  return weights[weekday] > 1 ? DEMAND_PROFILE.sunday : DEMAND_PROFILE.weekday;
+export function demandProfileOf(_weekday: WeekdayKey, _weights: Record<WeekdayKey,number> = DAY_WEIGHTS): readonly DemandBand[] {
+ return GLORIA_DEMAND;
 }
 
 /** Relative workload at a minute (1 outside all bands). */
@@ -218,7 +135,7 @@ export function staffAt(shifts: Shift[], employees: Map<string, Employee>, minut
   const present = [...new Set(shifts.filter(s => workingAt(s, minute)).map(s => s.employeeId))]
     .map(id => employees.get(id)).filter((e): e is Employee => !!e);
   return assignStations([...present, ...[...employees.values()].filter(e => e.ownerSupport && !present.some(p => p.id === e.id))],
-    employees.has("lt-ngoc-long") ? busyKitchenTarget(shifts[0]?.date, minute) : 1);
+    0);
 }
 
 /** Shared role resolution for reports and the scheduler's cached slot masks. */

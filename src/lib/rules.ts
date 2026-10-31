@@ -34,31 +34,22 @@ export type RuleId =
 export type Rule = { id: RuleId; kind: RuleKind; title: string; detail: string };
 
 export const RULES: readonly Rule[] = [
-  { id: "open-hours", kind: "hard", title: "Chỉ trong giờ mở cửa", detail: "Ngày quán đóng cửa và giờ nghỉ trưa không xếp ca." },
-  { id: "closing", kind: "hard", title: "Đủ người theo khung vận hành", detail: "Chủ tiệm có mặt cả ngày. Nhân viên hưởng lương ưu tiên theo khung cao điểm đã cấu hình." },
+  { id: "open-hours", kind: "hard", title: "Chỉ trong giờ mở cửa", detail: "T2–T6 09:30–19:30; T7 10:00–18:00. Nghỉ Chủ nhật và ngày lễ NRW." },
   { id: "shift-length", kind: "hard", title: "Ca liền, nghỉ đúng luật", detail: "GLORIA cho phép ca từ 1 giờ để phủ khung thiếu; tối đa 8 giờ công/ngày. Không chia ca gãy; giờ giải lao không tính nhân sự." },
   { id: "max-days", kind: "hard", title: "Tối đa 6 ngày liên tiếp", detail: "Không vượt 6 ngày liên tiếp và không vượt „Số ngày làm / tuần\" đã đặt." },
   { id: "days-off", kind: "hard", title: "Ngày nghỉ cố định", detail: "Không xếp ca vào ngày nghỉ cố định của người đó." },
   { id: "employment-period", kind: "hard", title: "Ngày vào làm / nghỉ việc", detail: "Không xếp ca trước ngày vào làm hoặc sau ngày nghỉ việc." },
-  { id: "two-stores", kind: "hard", title: "Không làm 2 quán cùng ngày", detail: "Người làm nhiều quán chỉ được xếp một quán mỗi ngày." },
   { id: "contract-max", kind: "hard", title: "Không quá giờ hợp đồng", detail: "Không xếp quá giờ tháng (hoặc giờ tuần với hợp đồng theo tuần)." },
   { id: "fixed-shift", kind: "hard", title: "Ca cố định", detail: "Người có ca cố định chỉ làm đúng khung giờ đó." },
-  { id: "holiday-duty", kind: "hard", title: "Trực ngày lễ", detail: "Ngày lễ quán mở thì người trực ngày lễ phải có ca." },
-  { id: "contract-hours", kind: "soft", title: "Đủ giờ định mức", detail: "Xếp đủ giờ hợp đồng; tháng không đủ ngày (nghỉ, giới hạn ngày, làm quán khác) thì báo thiếu." },
+  { id: "contract-hours", kind: "soft", title: "Đủ giờ định mức", detail: "Xếp đủ giờ định mức của 3 nhân viên hưởng lương; chủ tiệm có mặt cả ngày, không tính giờ hợp đồng." },
   { id: "peak-staff", kind: "soft", title: "Số người giờ cao điểm", detail: "Ưu tiên cao điểm 16–19h trong giờ mở cửa; ngày đông T5, T6, T7." },
-  { id: "day-weights", kind: "soft", title: "Ngày đông nhiều giờ hơn", detail: "Ngày đông (hệ số 1,5) và ngày lễ nhận nhiều giờ hơn ngày thường." },
+  { id: "day-weights", kind: "soft", title: "Ngày đông nhiều giờ hơn", detail: "T5/T6 ×1,5; T7 ×1,375 theo giờ mở, tương đương tổng giờ mục tiêu cao hơn T2 10%. Chủ nhật và ngày lễ nghỉ." },
   { id: "own-shift-length", kind: "soft", title: "Độ dài ca riêng", detail: "Mỗi ngày làm nằm trong khoảng giờ đã đặt cho người đó." },
   { id: "spread-evenly", kind: "soft", title: "Rải đều trong tháng", detail: "Hợp đồng tháng phân bổ trên toàn tháng, không khóa vào ngân sách từng tuần. Độ dài ca mong muốn là ưu tiên mềm." },
-  { id: "spread-service", kind: "soft", title: "Phủ thêm Bồi/Bếp ngoài khung bắt buộc", detail: "Giờ dư phủ thêm ngoài cao điểm trong giờ mở cửa; Chủ nhật và ngày lễ nghỉ." },
   { id: "preferred-windows", kind: "soft", title: "Khung giờ ưu tiên", detail: "Xếp vào ngày và giờ người đó muốn, nếu số người và giờ định mức cho phép." },
 ];
 
-export const ruleById = (id: RuleId): Rule => RULES.find((r) => r.id === id)!;
+export const ruleById = (id: RuleId): Rule => RULES.find((r) => r.id === id) ?? { id, kind: "hard", title: "Kiểm tra cấu hình", detail: "Kiểm tra giờ làm theo cấu hình GLORIA." };
 
-/** Besetzungsregeln (staffing.ts) nach Label: welche hart, welche weich. */
-export function staffingRuleId(label: string): RuleId {
-  if (label === "Bồi chuẩn bị gọn") return "spread-service";
-  if (label === "Bếp ngày đông") return "peak-staff";
-  if (label === "Bồi mở/đóng" || label === "Bồi rải đều" || label.endsWith("bổ sung")) return "spread-service";
-  return label === "Trưa" || label === "Tối" ? "peak-staff" : "closing";
-}
+/** GLORIA has one optional peak staffing rule; no station or closing rules. */
+export function staffingRuleId(_label: string): RuleId { return "peak-staff"; }

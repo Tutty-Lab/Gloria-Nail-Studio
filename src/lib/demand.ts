@@ -13,24 +13,8 @@ export type WeekdayKey =
   | "saturday"
   | "sunday";
 
-/**
- * Nachfrage-Gewichte je Wochentag (keine Mitarbeiterzahlen!).
- *
- * Angabe des Betriebs: „Thường từ T5 đến Chủ nhật khách tốt hơn" – Umsatz an
- * normalen Tagen rund 2.000 EUR, an starken Tagen 3.500–4.000 EUR, an
- * Feiertagen 4.500–5.000 EUR. Donnerstag bis Sonntag stehen deshalb auf 1,5,
- * Dienstag und Mittwoch auf 1,0. Feiertage zählen wie Sonntag. Montag ist
- * Ruhetag.
- */
-export const DAY_WEIGHTS: Record<WeekdayKey, number> = {
-  monday: 1.0, // Ruhetag (Gewicht nur relevant, falls doch geöffnet)
-  tuesday: 1.0,
-  wednesday: 1.0,
-  thursday: 1.5,
-  friday: 1.5,
-  saturday: 1.5,
-  sunday: 1.5,
-};
+/** Hệ số GLORIA; giờ mở cửa được tính riêng khi chia giờ theo ngày. */
+export { GLORIA_DAY_WEIGHTS as DAY_WEIGHTS } from "./gloriaConfig";
 
 /** date-fns getDay(): 0=So ... 6=Sa  ->  WeekdayKey. */
 const WEEKDAY_BY_GETDAY: Record<number, WeekdayKey> = {

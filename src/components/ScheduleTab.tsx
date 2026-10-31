@@ -1,4 +1,3 @@
-import { isRequiredCoverage } from "../lib/coveragePolicy";
 import { useMemo, useState } from "react";
 import type { UseScheduleReturn } from "../hooks/useSchedule";
 import type { Shift } from "../types";
@@ -11,7 +10,6 @@ import {
 import { minutesToShortHours, minutesToTime } from "../lib/time";
 import { signedHours } from "../lib/dateFormat";
 import { isDayClosed, resolveDay } from "../lib/workHours";
-import { staffAt } from "../lib/staffing";
 import { publicHolidays } from "../lib/holidays";
 import { ShiftCellEditor } from "./ShiftCellEditor";
 import { ScheduleDayView } from "./ScheduleDayView";
@@ -19,8 +17,8 @@ import { StundenzettelTab } from "./StundenzettelTab";
 import { weeksOfMonth } from "../lib/weeks";
 import { employmentShortVi } from "../lib/employment";
 import { monthlyTargetMinutesFor, SCHEDULE_SLOT_MINUTES } from "../lib/contract";
-import { StaffingReport } from "./StaffingReport";
-import { ServiceCoverageReport } from "./ServiceCoverageReport";
+import { ScheduleAuditReport } from "./ScheduleAuditReport";
+import { auditSchedule, AUDIT_WINDOWS } from "../lib/scheduleAudit";
 import type { PeakCoverage } from "../lib/analyze";
 import { ruleById, staffingRuleId } from "../lib/rules";
 import { checkShifts } from "../lib/shiftChecks";
@@ -155,41 +153,15 @@ export function ScheduleTab({
   }, [store.analysis]);
   const staffingRows = store.storeConfig.staffingRules;
 
-  // Debug wie AnAn: Hỗ trợ/Phục vụ je Tag und je Zeitfenster die kleinste Zahl
-  // gleichzeitig Anwesender (Sushi zählt zur Küche, Bar/Quản lý zum Service).
-  const groupStats = useMemo(() => {
-    const holidays = publicHolidays(schedule.year);
-    const ovMap = Object.fromEntries(schedule.dateOverrides.map((o) => [o.date, o]));
-    const groupById = new Map(schedule.employees.map((e) => [e.id, e.station ?? "SERVICE"] as const));
-    const result = new Map<string, { kitchen: number; service: number; flexible: number; windows: Map<string, number | null> }>();
-    for (const d of dates) {
-      const dayShifts = schedule.shifts.filter((s) => s.date === d);
-      const kitchen = new Set(dayShifts.filter((s) => groupById.get(s.employeeId) === "KITCHEN").map((s) => s.employeeId));
-      const service = new Set(dayShifts.filter((s) => groupById.get(s.employeeId) === "SERVICE").map((s) => s.employeeId));
-      const flexible = new Set(dayShifts.filter((s) => groupById.get(s.employeeId) === "BOTH").map((s) => s.employeeId));
-      const windows = new Map<string, number | null>();
-      result.set(d, { kitchen: kitchen.size, service: service.size, flexible: flexible.size, windows });
-      const day = resolveDay(schedule.workHours, d, holidays, ovMap);
-      if (day.closed) continue;
-      for (const w of GROUP_WINDOWS) {
-        let min: number | null = null;
-        for (const block of day.blocks) {
-          for (let t = Math.max(w.from, block.startMinutes); t + 30 <= Math.min(w.to, block.endMinutes); t += 30) {
-            const count = staffAt(dayShifts, new Map(schedule.employees.map(e => [e.id, e])), t).filter(e => (e.station === "KITCHEN" ? "KITCHEN" : "SERVICE") === w.group).length;
-            min = min == null ? count : Math.min(min, count);
-          }
-        }
-        windows.set(w.key, min);
-      }
-    }
-    return result;
-  }, [dates, schedule]);
-
+  const [showCoverage, setShowCoverage] = useState(false);
+  const [showDebug, setShowDebug] = useState(true);
+  const audit = useMemo(() => auditSchedule(schedule, store.storeConfig), [schedule, store.storeConfig]);
+  const auditDays = useMemo(() => new Map(audit.days.map(d => [d.date,d])), [audit]);
   const hasEmployees = store.activeEmployees.length > 0;
 
   return (
     <section>
-      {schedule.employees.some(e => e.ownerSupport) && <p className="mb-3 rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-900">Chủ tiệm có mặt suốt giờ mở cửa mỗi ngày; hỗ trợ Thợ hoặc Hỗ trợ, mỗi lúc một vị trí. Không tính vào giờ hợp đồng hay bảng chấm công.</p>}
+      {schedule.employees.some(e => e.ownerSupport) && <p className="mb-3 rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-900">Chủ tiệm có mặt suốt giờ mở cửa mỗi ngày; không chia bộ phận. Không tính vào giờ hợp đồng hay bảng chấm công.</p>}
       {/* Alles Sichtbare liegt im no-print-Block; beim Drucken bleibt nur der
           Druckbereich ganz unten übrig. */}
       <div className="no-print">
@@ -204,6 +176,10 @@ export function ScheduleTab({
           mode={mode}
           toolbarRight={
             <>
+            {mode === "schedule" && <>
+              <button type="button" aria-expanded={showCoverage} onClick={() => setShowCoverage(v=>!v)} className={`rounded-lg border px-2.5 py-1.5 text-sm ${showCoverage ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-800 border-slate-200"}`}>Độ phủ</button>
+              <button type="button" aria-pressed={showDebug} onClick={() => setShowDebug(v=>!v)} className={`rounded-lg border px-2.5 py-1.5 text-sm ${showDebug ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-800 border-slate-200"}`}>Debug khung giờ</button>
+            </>}
           {view === "week" && weeks.length > 0 && (
             <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white">
               <button
@@ -253,8 +229,7 @@ export function ScheduleTab({
         />
       )}
 
-      {mode === "schedule" && schedule.shifts.length > 0 && <StaffingReport analysis={store.analysis} />}
-      {mode === "schedule" && schedule.shifts.length > 0 && <ServiceCoverageReport schedule={schedule} />}
+      {mode === "schedule" && showCoverage && <ScheduleAuditReport schedule={schedule} store={store.storeConfig} />}
 
       {/* Lỗi kiểm tra */}
       {mode === "schedule" && !validation.valid && schedule.shifts.length > 0 && (
@@ -416,7 +391,7 @@ export function ScheduleTab({
                     const day = resolveDay(schedule.workHours, date, publicHolidays(schedule.year),
                       override ? { [date]: override } : {});
                     return <td key={date} className="border-b border-l border-slate-200 px-0.5 py-1 text-center text-[10px] font-medium whitespace-nowrap"
-                      title={day.closed ? "Quán đóng cửa" : "Chủ có mặt suốt giờ mở; hỗ trợ Thợ hoặc Hỗ trợ, không tính giờ lương"}>
+                      title={day.closed ? "Quán đóng cửa" : "Chủ có mặt suốt giờ mở; không tính giờ lương"}>
                       {day.closed ? "–" : day.blocks.map((block, index) => <div key={index}>
                         {shortTime(block.startMinutes)}–{shortTime(block.endMinutes)}
                       </div>)}
@@ -429,9 +404,6 @@ export function ScheduleTab({
             <tfoot>
               <SummaryRow label="Số nhân viên" dates={gridDates} value={(d) => String(dayStats.get(d)!.people.size)} />
               <SummaryRow label="Số ca" dates={gridDates} value={(d) => String(dayStats.get(d)!.shifts)} />
-              <SummaryRow label="Hỗ trợ riêng" labelClass="text-orange-700" dates={gridDates} value={(d) => String(groupStats.get(d)!.kitchen)} />
-              <SummaryRow label="Thợ riêng" labelClass="text-sky-700" dates={gridDates} value={(d) => String(groupStats.get(d)!.service)} />
-              <SummaryRow label="Cả 2" labelClass="text-violet-700" dates={gridDates} value={(d) => String(groupStats.get(d)!.flexible)} />
               <SummaryRow
                 label="Tổng giờ"
                 dates={gridDates}
@@ -458,17 +430,15 @@ export function ScheduleTab({
                   peaks={(d) => peaksByDay.get(d)?.byLabel.get(rule.label)}
                 />
               ))}
-              {schedule.shifts.length > 0 && GROUP_WINDOWS.map((w) => (
-                <GroupWindowRow
-                  key={w.key}
-                  label={`${w.group === "KITCHEN" ? "Hỗ trợ" : "Thợ"} ${w.range}`}
-                  title={`${w.group === "KITCHEN" ? "Hỗ trợ" : "Thợ"} ít nhất có mặt, ${w.title}`}
-                  labelClass={w.group === "KITCHEN" ? "text-orange-700" : "text-sky-700"}
-                  dates={gridDates}
-                  need={w.need}
-                  value={(d) => groupStats.get(d)?.windows.get(w.key) ?? null}
-                />
-              ))}
+
+              {showDebug && schedule.shifts.length > 0 && AUDIT_WINDOWS.map((window,index) => <GroupWindowRow
+                key={window.label} label={`Nhân sự ${window.label}`} title={`Nhân sự ít nhất có mặt, ${window.label}`}
+                labelClass="text-sky-700" dates={gridDates} need={0}
+                value={date=>{
+                  const value=auditDays.get(date)?.windows[index];
+                  return value?.openMinutes ? value.minEmployees : null;
+                }} />)}
+
             </tfoot>
           </table>
         </div>
@@ -596,24 +566,7 @@ function CoverageRow({
   );
 }
 
-// Khung giờ cho các dòng „ít nhất" Hỗ trợ/Thợ – theo giờ Lemontaste
-// (11:00–21:30; đông 12–14 và 18–20). Nhãn ngắn, đầy đủ ở tooltip.
-const GROUP_RANGES = [
-  ["open", "11–12", "11:00 – 12:00", 11 * 60, 12 * 60],
-  ["noon", "12–14", "12:00 – 14:00 (giờ đông)", 12 * 60, 14 * 60],
-  ["afternoon", "14–17", "14:00 – 17:00 (ít khách 15–17)", 14 * 60, 17 * 60],
-  ["preparation", "17–18", "17:00 – 18:00 (chuẩn bị giờ đông)", 17 * 60, 18 * 60],
-  ["evening", "18–20", "18:00 – 20:00 (giờ đông)", 18 * 60, 20 * 60],
-  ["evening-end", "20–21½", "20:00 – đóng cửa 21:30", 20 * 60, 21 * 60 + 30],
-] as const;
-const GROUP_WINDOWS = (["KITCHEN", "SERVICE"] as const).flatMap((group) =>
-  GROUP_RANGES.map(([key, range, title, from, to]) => ({
-    key: `${group}-${key}`, range, title, group, from, to,
-    need: isRequiredCoverage(from) ? 1 : 0,
-  })),
-);
 
-/** Dòng „ít nhất x người" của một nhóm trong khung giờ: đỏ khi thiếu so với luật, vàng khi trống. */
 function GroupWindowRow({
   label,
   title,

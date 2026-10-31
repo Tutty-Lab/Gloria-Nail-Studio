@@ -1,11 +1,11 @@
-// Lemontaste: một quán.
+// GLORIA: một tiệm.
 
 import type { Employee, Schedule } from "../types";
 import { type WeekdayKey } from "./demand";
 import { type DemandBand, type StaffingRule } from "./staffing";
 import { DEFAULT_WORK_HOURS } from "./workHours";
-import { lemontasteEmployees } from "./restaurantData";
-import { clip } from "./staffing";
+import { gloriaEmployees } from "./restaurantData";
+import { GLORIA_WORK_HOURS, GLORIA_DAY_WEIGHTS, GLORIA_DEMAND, GLORIA_STAFFING_RULES } from "./gloriaConfig";
 import type { WorkHoursConfig } from "./workHours";
 
 export type StoreConfig = {
@@ -26,29 +26,13 @@ export type StoreConfig = {
   staffingRules: readonly StaffingRule[];
 };
 
-const open = { startMinutes: 570, endMinutes: 1170 };
-const gloriaHours: WorkHoursConfig = {
-  perWeekday: { monday: [open], tuesday: [open], wednesday: [open], thursday: [open],
-    friday: [open], saturday: [{ startMinutes: 600, endMinutes: 1080 }], sunday: [] },
-  holiday: [],
-  closedWeekdays: { monday: false, tuesday: false, wednesday: false, thursday: false,
-    friday: false, saturday: false, sunday: true },
-};
-const rules: readonly StaffingRule[] = [
-  { priority: "coverage", label: "Nhân viên giờ cao điểm", when: "16:00–19:00 trong giờ mở cửa", minStaff: 2, maxStaff: Infinity,
-    scaled: false, who: (e: Employee) => !e.ownerSupport, windows: clip(960, 1140) },
-];
 export const STORES: StoreConfig[] = [
   { id: "gloria", name: "GLORIA – Nails, Eyelashes & Cosmetic", shortName: "GLORIA",
-    address: "Hohenstaufenring 55, 50674 Köln", sampleEmployees: lemontasteEmployees,
-    workHours: gloriaHours, staffingRules: rules,
-    demandProfile: [
-      { startMinutes: 570, endMinutes: 960, level: 1, label: "Giờ thường" },
-      { startMinutes: 960, endMinutes: 1140, level: 1.8, label: "Cao điểm" },
-      { startMinutes: 1140, endMinutes: 1170, level: 0.8, label: "Cuối ngày" },
-    ],
-    dayWeights: { monday: 1, tuesday: 1, wednesday: 1, thursday: 1.5, friday: 1.5, saturday: 1.2, sunday: 0 },
-    notes: "T2–T6 09:30–19:30; T7 10:00–18:00. Nghỉ Chủ nhật và ngày lễ NRW. Đông T5, T6, T7; T7 đông hơn T2 một chút. Cao điểm 16:00–19:00 (T7 đến 18:00). Chủ tiệm có mặt cả ngày, ngoài định mức lương. Mục tiêu 2 nhân viên cao điểm là mặc định có thể chỉnh. Điện thoại: 0221/56066581 | 0152/36110859. Website: gloria-cosmetic.de." },
+    address: "Hohenstaufenring 55, 50674 Köln", sampleEmployees: gloriaEmployees,
+    workHours: GLORIA_WORK_HOURS, staffingRules: GLORIA_STAFFING_RULES,
+    demandProfile: GLORIA_DEMAND,
+    dayWeights: GLORIA_DAY_WEIGHTS,
+    notes: "T2–T6 09:30–19:30; T7 10:00–18:00. Nghỉ Chủ nhật và ngày lễ NRW. Đông T5, T6, T7; T7 đông hơn T2 một chút. Cao điểm 16:00–19:00 (T7 đến 18:00). Chủ tiệm có mặt cả ngày, ngoài định mức lương. Ưu tiên ít nhất 1 nhân viên hưởng lương cao điểm; giờ còn lại phân bổ theo hệ số. T5/T6 ×1,5; T7 ×1,375 theo giờ mở (tổng giờ mục tiêu cao hơn T2 10%). Điện thoại: 0221/56066581 | 0152/36110859. Website: gloria-cosmetic.de." },
 ];
 
 export const DEFAULT_STORE_ID = STORES[0].id;
@@ -78,16 +62,7 @@ export function storeById(id: string): StoreConfig {
   return STORES.find((s) => s.id === id) ?? STORES[0];
 }
 
-/**
- * Ältere Stände (gespeichert, bevor Nieu 37 dazukam) kennen noch keinen
- * personKey. Dann erkennt „Tạo lịch làm việc" nicht, dass Bá Việt Nguyen im
- * Shin und im Nieu derselbe Mensch ist, und plant ihn am selben Tag in beiden
- * Läden. Fehlt der personKey, übernimmt ein Mitarbeiter mit derselben id und
- * demselben Namen wie in der Startbelegschaft personKey und – nur in diesem
- * einen Schritt – auch maxDaysPerWeek. Danach steht der personKey im Stand, und
- * ein später geleertes „tối đa … ngày/tuần" bleibt leer. Löst man die
- * Verbindung im Tab Nhân viên, steht dort "" statt nichts.
- */
+/** Preserve explicitly configured employee links and limits. */
 export function withSharedPersonDefaults(employees: Employee[], store: StoreConfig): Employee[] {
   const starters = new Map(store.sampleEmployees().map((e) => [e.id, e]));
   return employees.map((employee) => {
@@ -102,7 +77,7 @@ export function withSharedPersonDefaults(employees: Employee[], store: StoreConf
   });
 }
 
-/** Startstand einer Filiale: September 2026 mit der Belegschaft aus der Angabe. */
+/** Startstand einer Filiale: Oktober 2026 mit der Belegschaft aus der Angabe. */
 export function initialScheduleFor(store: StoreConfig): Schedule {
   return {
     companyName: store.name,

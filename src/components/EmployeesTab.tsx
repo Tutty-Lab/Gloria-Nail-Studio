@@ -14,7 +14,6 @@ import { describePreferredWindow, ownShiftRangeMinutes, preferredWindowsOf } fro
 const inputClass =
   "rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base sm:text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500";
 
-const STATION_VI: Record<Station, string> = { SERVICE: "Thợ", KITCHEN: "Hỗ trợ", BOTH: "Cả 2 (Thợ + Hỗ trợ)" };
 
 const FIXED_START_DEFAULT = "06:30";
 const FIXED_END_DEFAULT = "14:30";
@@ -152,7 +151,7 @@ export function draftToEmployee(d: Draft): Omit<Employee, "id"> {
     name: d.name.trim() || "Nhân viên mới",
     employmentType: d.employmentType,
     ownerSupport: d.ownerSupport || undefined,
-    station: d.station,
+    station: "SERVICE",
     quotaSource: "hours",
     unavailableRanges: d.unavailableRanges.filter(range => range.startDate && range.endDate && range.startDate <= range.endDate),
     targetMinutes: d.ownerSupport ? 0 : Math.round(hours * 60),
@@ -168,7 +167,7 @@ export function draftToEmployee(d: Draft): Omit<Employee, "id"> {
     shiftWindow: d.limited ? { startMinutes: safeMinutes(d.windowStart,"11:00"), endMinutes: safeMinutes(d.windowEnd,"21:30") } : undefined,
     availableWeekdays: d.daysOff.length === 0 || available.length === 0 ? undefined : available,
     maxDaysPerWeek: d.maxDays === "" || tage < 1 ? undefined : Math.min(6, Math.round(tage)),
-    requiredOnHolidays: d.holidayDuty ? true : undefined,
+    requiredOnHolidays: undefined,
     shiftHours: shiftHoursFromDraft(d),
     spreadEvenly: d.spreadEvenly ? true : undefined,
     preferredWindows: windowsFromDraft(d),
@@ -336,13 +335,7 @@ function EmployeeSummaryRow({
         <span className="shrink-0 rounded bg-slate-100 text-slate-600 text-[11px] px-1.5 py-0.5">
           {employmentShortVi(emp.employmentType)}
         </span>
-        <span
-          className={`shrink-0 rounded text-[11px] px-1.5 py-0.5 ${
-            emp.station === "KITCHEN" ? "bg-orange-50 text-orange-800" : "bg-sky-50 text-sky-800"
-          }`}
-        >
-          {STATION_VI[emp.station ?? "SERVICE"]}
-        </span>
+
       </div>
       <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
         <span>
@@ -615,18 +608,7 @@ function EmployeeSheet({
                 ]}
               />
             </div>
-            <div>
-              <FieldLabel>Bộ phận</FieldLabel>
-              <Segmented<Station>
-                value={d.station}
-                onChange={(v) => set("station", v)}
-                options={[
-                  { value: "SERVICE", label: "Thợ" },
-                  { value: "KITCHEN", label: "Hỗ trợ" },
-                  { value: "BOTH", label: "Cả 2 (Thợ + Hỗ trợ)" },
-                ]}
-              />
-            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <label className="block min-w-0">
                 <FieldLabel>Lương tháng (€)</FieldLabel>
@@ -637,7 +619,7 @@ function EmployeeSheet({
                 <HoursInput value={d.hourlyRate} onChange={v => set("hourlyRate", v)} placeholder="13,90" unit="€/h" />
               </label>
             </div>
-            {d.ownerSupport && <p className="text-sm text-slate-600">Chủ tiệm hỗ trợ suốt giờ mở cửa mỗi ngày, mỗi lúc một vị trí Thợ hoặc Hỗ trợ. Không tính giờ hợp đồng.</p>}
+            {d.ownerSupport && <p className="text-sm text-slate-600">Chủ tiệm hỗ trợ suốt giờ mở cửa mỗi ngày, không chia bộ phận. Không tính giờ hợp đồng.</p>}
             <label className="block">
               <FieldLabel>Giờ / tháng</FieldLabel>
               <HoursInput value={d.hours} onChange={v => set("hours", v)} placeholder="VD 169" />
@@ -778,12 +760,6 @@ function EmployeeSheet({
                       <label>Được làm đến<input aria-label="Được làm đến" type="time" step={1800} className={`${inputClass} w-full`} value={d.windowEnd} onChange={e=>set("windowEnd",e.target.value)} /></label>
                     </div>}
                     {windowBad && <p role="alert" className="text-sm text-rose-600">Giờ kết thúc khung phải sau giờ bắt đầu.</p>}
-                    <CheckRow
-                      label="Trực ngày lễ"
-                      note="Ngày lễ nào quán mở thì người này luôn có ca."
-                      checked={d.holidayDuty}
-                      onChange={(v) => set("holidayDuty", v)}
-                    />
                     <div className="rounded-lg border border-slate-200">
                       <label className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5">
                         <span className="text-sm text-slate-700">

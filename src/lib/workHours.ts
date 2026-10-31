@@ -66,36 +66,8 @@ export function longestBlock(blocks: DayBlocks): number {
   return max;
 }
 
-const w = (start: number, end: number): DayWindow => ({ startMinutes: start, endMinutes: end });
-
-// Vorgabe des Betriebs (Shin Restaurant), Arbeitszeit:
-//   Montag             Ruhetag
-//   Dienstag–Sonntag   11:30–15:00 UND 17:00–22:00
-//   Feiertag           wie Sonntag geöffnet (stärkster Umsatz)
-const SHIN_TAG: DayBlocks = [w(11 * 60 + 30, 15 * 60), w(17 * 60, 22 * 60)];
-
-export const DEFAULT_WORK_HOURS: WorkHoursConfig = {
-  perWeekday: {
-    monday: SHIN_TAG.map((b) => ({ ...b })), // geschlossen, nur als Rückfall
-    tuesday: SHIN_TAG.map((b) => ({ ...b })),
-    wednesday: SHIN_TAG.map((b) => ({ ...b })),
-    thursday: SHIN_TAG.map((b) => ({ ...b })),
-    friday: SHIN_TAG.map((b) => ({ ...b })),
-    saturday: SHIN_TAG.map((b) => ({ ...b })),
-    sunday: SHIN_TAG.map((b) => ({ ...b })),
-  },
-  // Feiertage: offen wie sonst, aber mit dem höchsten Umsatz (siehe DAY_WEIGHTS).
-  holiday: SHIN_TAG.map((b) => ({ ...b })),
-  closedWeekdays: {
-    monday: true, // Shin: montags Ruhetag
-    tuesday: false,
-    wednesday: false,
-    thursday: false,
-    friday: false,
-    saturday: false,
-    sunday: false,
-  },
-};
+import { GLORIA_WORK_HOURS } from "./gloriaConfig";
+export const DEFAULT_WORK_HOURS = GLORIA_WORK_HOURS;
 
 /**
  * Für Nachfrage/Spätquote maßgeblicher Wochentag: Feiertage zählen wie Sonntag
@@ -146,7 +118,8 @@ export function resolveDay(
   if (ov?.window) return open([ov.window]);
   const weekday = weekdayKeyOf(parseIsoDate(isoDate));
   if (config.closedWeekdays?.[weekday]) return CLOSED;
-  return open(resolveWorkBlocks(config, isoDate, holidays));
+  const blocks = resolveWorkBlocks(config, isoDate, holidays).filter(b => b.endMinutes > b.startMinutes);
+  return blocks.length ? open(blocks) : CLOSED;
 }
 
 /** Ist der Laden an diesem Datum geschlossen? (für die Anzeige in der UI). */

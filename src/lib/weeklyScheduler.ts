@@ -1,18 +1,16 @@
-import { busyKitchenTarget } from "./coveragePolicy";
 import type { DemandBand } from "./staffing";
 import type { Employee, PreferredWindow, Shift } from "../types";
 import { DAY_WEIGHTS, datesOfMonth, parseIsoDate, weekdayKeyOf, type WeekdayKey } from "./demand";
 import { monthlyTargetMinutesFor, weeklyBudgetMinutes, weeklyTargetMinutes } from "./contract";
 import { calculatePause } from "./time";
 import { mayWorkOn } from "./availability";
-import { peakBalanceTargets, type BalanceSlot } from "./peakBalance";
+import { singlePoolTargets, peakBalanceTargets, type BalanceSlot } from "./peakBalance";
 import { consecutiveRunLengthWith } from "./consecutive";
 import { effectiveWeekdayKey, resolveDay, type DayBlocks, type DayWindow, type OverrideMap, type WorkHoursConfig } from "./workHours";
 import { publicHolidays } from "./holidays";
 import { weekStartOf } from "./weeks";
 import { minutesOutsidePreferred, ownShiftRangeMinutes, preferredWindowsOf } from "./preferredWindows";
 import {
-  CLOSING_START,
   STAFFING_RULES,
   slotTargets,
   staffingWindows,
@@ -155,7 +153,7 @@ function makeShift(
   // improveCoverage later moves pauses by the REAL headcount of the day.
   const pauseStartMinutes = pauseMinutes > 0 ? pauseStartCandidates(startMinutes, endMinutes, pauseMinutes).sort((a, b) => {
     const score = (start: number) => Array.from({ length: pauseMinutes / SLOT }, (_, index) => start + index * SLOT)
-      .reduce((sum, minute) => sum + workloadAt(minute, weekday, ctx.weights, ctx.demandProfile) + (minute >= CLOSING_START ? 100 : 0), 0);
+      .reduce((sum, minute) => sum + workloadAt(minute, weekday, ctx.weights, ctx.demandProfile), 0);
     return score(a) - score(b) || ((a / SLOT + hash(employeeId)) % 7) - ((b / SLOT + hash(employeeId)) % 7);
   })[0] : undefined;
   return {
@@ -318,12 +316,11 @@ function calculateDayCost(shifts: Shift[], blocks: DayBlocks, weekday: WeekdayKe
   }
   for (const employee of ctx.employeesById.values()) if (employee.ownerSupport && !byEmployee.has(employee.id)) {
     byEmployee.set(employee.id, { employee, mask: model.minutes.map(() => 1) });
-    for (let i = 0; i < counts.length; i++) counts[i]++;
+    if (!ctx.tag.startsWith("gloria|")) for (let i = 0; i < counts.length; i++) counts[i]++;
   }
   const members = [...byEmployee.values()];
-  const busyKitchen = ctx.rules.some(r => r.label === "Bếp ngày đông") && busyKitchenTarget(date, 720) === 2;
-  const assigned = model.minutes.map((minute, i) => {
-    const kitchenNeeded = busyKitchen && ((minute >= 720 && minute < 840) || (minute >= 1080 && minute < 1200)) ? 2 : 1;
+  const assigned = model.minutes.map((_minute, i) => {
+    const kitchenNeeded = 0;
     // At most 30 employees fit the bitmask; larger teams keep the general path.
     if (ctx.employeesById.size > 30) return assignStations(members.filter(m => m.mask[i]).map(m => m.employee), kitchenNeeded);
     let bits = 0;
@@ -365,7 +362,7 @@ function calculateDayCost(shifts: Shift[], blocks: DayBlocks, weekday: WeekdayKe
     const target = targets.get(model.minutes[i]);
     if (!target) continue;
     const kitchen = assigned[i].filter(e => e.station === "KITCHEN").length;
-    const service = assigned[i].length - kitchen;
+    const service = assigned[i].filter(e => e.station !== "KITCHEN" && (!ctx.tag.startsWith("gloria|") || !e.ownerSupport)).length;
     balance += SLOT * ((service - target.service) ** 2 + (kitchen - target.kitchen) ** 2) / target.weight;
     balance += SLOT * Math.max(0, service - Math.ceil(target.service)) ** 2 * (ctx.peakPolish ? 1200 : 10);
   }
@@ -931,13 +928,13 @@ export function generateWeeklySchedule(input: WeeklyInput, existing: Shift[] = [
   let balanceTargets: Ctx["balanceTargets"];
   if (hasCoverageObjective && input.demandProfile?.length) {
     const peakLevel = Math.max(...input.demandProfile.map(b => b.level));
-    const slots: BalanceSlot[] = [];
+    const slots: (BalanceSlot & { demand: number })[] = [];
     for (const [date, day] of days) {
       if (day.closed) continue;
       const weekday = effectiveWeekdayKey(date, holidays);
       for (const block of day.blocks) for (let minute = block.startMinutes; minute < block.endMinutes; minute += SLOT) {
         slots.push({ date, minute, duration: Math.min(SLOT, block.endMinutes - minute),
-          weight: ctx.weights[weekday], peak: workloadAt(minute, weekday, ctx.weights, input.demandProfile) === peakLevel });
+          weight: ctx.weights[weekday], demand: workloadAt(minute, weekday, ctx.weights, input.demandProfile), peak: workloadAt(minute, weekday, ctx.weights, input.demandProfile) === peakLevel });
       }
     }
     const capacity = { service: 0, kitchen: 0, flexible: 0 };
@@ -949,7 +946,9 @@ export function generateWeeklySchedule(input: WeeklyInput, existing: Shift[] = [
       const role = e.station === "KITCHEN" ? "kitchen" : e.station === "BOTH" ? "flexible" : "service";
       capacity[role] += Math.min(quota, available);
     }
-    balanceTargets = peakBalanceTargets(slots, capacity);
+    balanceTargets = input.storeTag === "gloria"
+      ? singlePoolTargets(slots, capacity.service + capacity.kitchen + capacity.flexible)
+      : peakBalanceTargets(slots, capacity);
   }
   const flexibility = (employee: Employee) => {
     const window = employee.shiftWindow;

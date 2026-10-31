@@ -8,13 +8,19 @@ const shift = (employeeId: string, date: string, start: number, end: number, pau
     pauseMinutes: pause, paidMinutes: (end - start) * 60 - pause } as Shift);
 
 describe("checkShifts", () => {
-  const base = { ...initialScheduleFor(STORES[0]), month: 10 };
+  const base = { ...initialScheduleFor(STORES[0]), month: 10, employees: [
+    { id: "lt-moi-a", name: "Weekend fixture", employmentType: "MINIJOB" as const, targetMinutes: 2400, availableWeekdays: ["friday" as const, "saturday" as const] },
+    { id: "lt-dinh-bien", name: "Window fixture", employmentType: "MINIJOB" as const, targetMinutes: 2400, shiftWindow: { startMinutes: 1080, endMinutes: 1290 } },
+    { id: "lt-van-kien", name: "Break fixture", employmentType: "TEILZEIT" as const, targetMinutes: 4800 },
+    { id: "lt-ngoc-long", name: "Valid fixture", employmentType: "TEILZEIT" as const, targetMinutes: 4800 },
+    { id: "lt-ngoc-ly-ly", name: "Length fixture", employmentType: "VOLLZEIT" as const, targetMinutes: 9600, shiftHours: { min: 6, max: 6 } },
+  ] };
   it("flags weekday, shift window and pause violations", () => {
     const issues = checkShifts({ ...base, shifts: [
       shift("lt-moi-a", "2026-10-05", 12, 15),          // Thai Hung: chỉ T6–CN
-      shift("lt-dinh-bien", "2026-10-06", 17, 20),      // ngoài khung 18:00–21:30
+      shift("lt-dinh-bien", "2026-10-06", 17, 19),      // ngoài khung 18:00–21:30
       shift("lt-van-kien", "2026-10-07", 11, 19),       // 8 h, không Pause
-      shift("lt-ngoc-long", "2026-10-07", 14, 21.5, 30),
+      shift("lt-ngoc-long", "2026-10-07", 12, 19.5, 30),
     ] });
     expect(issues.get("lt-moi-a#2026-10-05")?.[0].text).toMatch(/Không làm/);
     expect(issues.get("lt-dinh-bien#2026-10-06")?.[0].text).toMatch(/Ngoài khung ca/);

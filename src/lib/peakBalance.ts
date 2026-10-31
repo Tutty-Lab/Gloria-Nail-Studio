@@ -20,3 +20,23 @@ export function peakBalanceTargets(slots: BalanceSlot[], capacity: { service: nu
   }
   return targets;
 }
+
+/** One paid staff pool. Day weights determine total hours; demand shapes each day. */
+export function singlePoolTargets(slots: (BalanceSlot & { demand: number })[], paidMinutes: number) {
+  const denominator = slots.reduce((sum,s) => sum + s.duration * s.weight, 0);
+  const days = new Map<string, { weighted: number; demand: number }>();
+  for (const s of slots) {
+    const day=days.get(s.date) ?? { weighted: 0, demand: 0 };
+    day.weighted += s.duration * s.weight; day.demand += s.duration * s.demand;
+    days.set(s.date,day);
+  }
+  const targets = new Map<string, Map<number, BalanceTarget>>();
+  for (const s of slots) {
+    const day=days.get(s.date)!;
+    const dayMinutes=denominator > 0 ? paidMinutes * day.weighted / denominator : 0;
+    const values=targets.get(s.date) ?? new Map<number, BalanceTarget>();
+    values.set(s.minute, { service: day.demand > 0 ? dayMinutes * s.demand / day.demand : 0, kitchen: 0, weight: s.weight });
+    targets.set(s.date,values);
+  }
+  return targets;
+}
